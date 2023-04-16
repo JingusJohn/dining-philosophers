@@ -47,6 +47,10 @@ void clean(struct diner_t *diner);
 
 int main(int argc, char *argv[]) {
 
+  // user needs to provide the number of philosophers and the amount of times
+  //  each philosopher will eat before they are full
+
+  // if they don't provide the required arguments, notify the user and exit
   if (argc != 3) {
     printf("Usage: %s [number of philosophers] [how many times each "
            "philosopher eats]\n",
@@ -54,6 +58,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
+  // parse the arguments as integers
   int numPhilosophers = atoi(argv[1]);
   int philosopherApetite = atoi(argv[2]);
 
@@ -63,10 +68,14 @@ int main(int argc, char *argv[]) {
            philosopherApetite);
   }
 
+  // initialize the diner
   struct diner_t diner;
   init(&diner, numPhilosophers, philosopherApetite);
 
+  // use an array to track the threads created for each philosopher
   pthread_t *threads = (pthread_t *)malloc(sizeof(pthread_t) * diner.philosophers);
+  // create an array of structs tracking the context of each philosopher
+  // these contexts will be passed as arguments into the thread function
   struct philosopherCtx_t *pContexts = (struct philosopherCtx_t *)malloc(sizeof(struct philosopherCtx_t) * diner.philosophers);
 
   // create threads and context for every philosopher
@@ -74,7 +83,7 @@ int main(int argc, char *argv[]) {
     // configure philosopherCtx
     initPCtx(&pContexts[p], &diner, p);
 
-    // create a thread for each philosopher
+    // create a thread for each philosopher (executes philosopher function) with context as parameter
     pthread_create(&threads[p], NULL, philosopher, &pContexts[p]);
 
   }
@@ -111,6 +120,8 @@ void initPCtx(struct philosopherCtx_t *pCtx, struct diner_t *diner, int p) {
   pCtx->ctx = diner;
   pCtx->apetite = diner->startingApetite;
   pCtx->identity = p;
+  // these getFork functions assume the table is circular and there is a fork between each philosopher
+  // this assumption is safe because it's exactly what's specified in the assignment PDF
   pCtx->leftFork = getLeftFork(p, diner->philosophers);
   pCtx->rightFork = getRightFork(p, diner->philosophers);
 }
@@ -126,11 +137,7 @@ int getLeftFork(int p, int philosophers) {
 
 /* Calculates the index of the fork to the right of the philosopher */
 int getRightFork(int p, int philosophers) {
-  int result = p + 1;
-  if (result == philosophers) {
-    result = 0;
-  }
-  return result;
+  return p;
 }
 
 /* logic for a philosopher thread to execute */
@@ -146,6 +153,7 @@ void *philosopher(void *param) {
 
     // even philosophers grab the right fork first
     //  odd philosophers grab the left fork first
+    // sem_wait to simulate this action
 
     if (pCtx->identity % 2 == 0) {
       if (DEBUG) {
@@ -165,8 +173,10 @@ void *philosopher(void *param) {
     if (DEBUG) {
       printf("philosopher %d has eaten %d times.\n", pCtx->identity + 1, timesEaten++ + 1);
     }
+    // decrement apetite since the philosopher has eaten
     pCtx->apetite--;
     // philosophers have no preference for order in which they place forks back down
+    // sem_post to simulate this action
     sem_post(&pCtx->ctx->forkBuffer[pCtx->rightFork]);
     sem_post(&pCtx->ctx->forkBuffer[pCtx->leftFork]);
   }
